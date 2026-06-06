@@ -1,21 +1,17 @@
-# NAC OSCE Helper
+# NAC OSCE Timer
 
-AI-powered Canada-style OSCE practice platform built with Next.js, TypeScript, React, Tailwind CSS, Supabase, and Gemini.
+Mobile-friendly NAC OSCE practice timer built with Next.js, TypeScript, React, and Tailwind CSS.
 
-The current scaffold is runnable with mock data and mock AI responses. Gemini, Supabase, Deepgram, and Ready Player Me connection points are marked in code with placeholder comments.
+The app is currently timer-only. AI patient, examiner, auth, and API features are disabled from the UI so the project can export as a static GitHub Pages site.
 
 ## Features
 
-- Landing page, dashboard, case library, live simulation room, feedback/results page, and progress page
-- Original practice cases for chest pain, abdominal pain, depression, pediatric fever, prenatal counselling, and breaking bad news
-- Timed OSCE mode with 2-minute reading timer, 11-minute encounter timer, 1-minute warning, and end-station control
-- AI patient route with Gemini integration placeholder and mock fallback
-- AI examiner route with Gemini scoring placeholder and mock fallback
-- Transcript panel with candidate and patient messages
-- Manual typing fallback plus browser speech recognition support
-- Browser text-to-speech for patient output
-- Avatar placeholder panels for patient and examiner
-- Supabase Auth UI scaffold and SQL schema
+- Official NAC timing rhythm: 2 minutes between stations and 11 minutes per station
+- Mobile-first timer display for solo practice
+- Configurable circuit length
+- Auto-advance between move/read and station phases
+- Audible alarm patterns and optional 1-minute practice warning
+- Static export for GitHub Pages
 
 ## Setup
 
@@ -25,60 +21,24 @@ The current scaffold is runnable with mock data and mock AI responses. Gemini, S
 npm install
 ```
 
-2. Create local environment variables:
-
-```bash
-cp .env.example .env.local
-```
-
-3. Fill in the values you want to enable:
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-GEMINI_API_KEY=
-DEEPGRAM_API_KEY=
-NEXT_PUBLIC_READY_PLAYER_ME_SUBDOMAIN=
-```
-
-4. Run the development server:
+2. Run the development server:
 
 ```bash
 npm run dev
 ```
 
-5. Open `http://localhost:3000`.
+3. Open `http://localhost:3000`.
 
-## Supabase
+## Static Build
 
-Run `supabase/schema.sql` in the Supabase SQL editor to create:
+```bash
+npm run build
+```
 
-- `profiles`
-- `cases`
-- `practice_sessions`
-- `transcripts`
-- `scores`
+The static site is exported to `out/`.
 
-The UI currently uses local mock data from `lib/cases.ts`. Replace that with Supabase reads once auth and row-level policies are configured for your deployment.
+## GitHub Pages
 
-## API Routes
+The included GitHub Actions workflow builds and deploys the static site from `main`.
 
-- `POST /api/patient`
-  - Input: `{ caseId, transcript }`
-  - Uses Gemini when `GEMINI_API_KEY` is available, otherwise mock patient responses.
-
-- `POST /api/examiner`
-  - Input: `{ caseId, transcript }`
-  - Uses Gemini when `GEMINI_API_KEY` is available, otherwise mock scoring.
-
-- `POST /api/sessions`
-  - Placeholder for creating Supabase practice sessions.
-
-## Important Content Note
-
-The sample cases are original educational practice cases inspired by common OSCE formats. They do not reproduce copyrighted MCC or NAC station content.
-
-## Deployment
-
-Deploy on Vercel and add the same environment variables in the Vercel project settings. Keep `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `DEEPGRAM_API_KEY` server-side only.
+In GitHub, enable Pages with **Settings > Pages > Source: GitHub Actions**.

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NAC OSCE Helper",
-  description: "AI-powered Canada NAC OSCE practice platform"
+  title: "NAC OSCE Timer",
+  description: "Mobile-friendly NAC OSCE practice timer"
 };
 
 export default function RootLayout({
