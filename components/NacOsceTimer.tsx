@@ -32,7 +32,6 @@ const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
 const ALARM_AUDIO_SRC = "/alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
-let sharedAlarmAudio: HTMLAudioElement | null = null;
 let sharedAlarmBuffer: AudioBuffer | null = null;
 let sharedAlarmBufferPromise: Promise<AudioBuffer | null> | null = null;
 
@@ -106,19 +105,6 @@ function getAudioContext() {
   return sharedAudioContext;
 }
 
-function getAlarmAudio() {
-  if (typeof Audio === "undefined") {
-    return null;
-  }
-
-  if (!sharedAlarmAudio) {
-    sharedAlarmAudio = new Audio(ALARM_AUDIO_SRC);
-    sharedAlarmAudio.preload = "auto";
-  }
-
-  return sharedAlarmAudio;
-}
-
 function loadAlarmBuffer() {
   const context = getAudioContext();
   if (!context) {
@@ -151,30 +137,7 @@ function loadAlarmBuffer() {
   return sharedAlarmBufferPromise;
 }
 
-function unlockAlarmAudio() {
-  const audio = getAlarmAudio();
-  if (!audio) {
-    return;
-  }
-
-  const wasMuted = audio.muted;
-  audio.muted = true;
-  audio.currentTime = 0;
-  const playPromise = audio.play();
-  void playPromise
-    .then(() => {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.muted = wasMuted;
-    })
-    .catch(() => {
-      audio.muted = wasMuted;
-    });
-}
-
 function unlockAudio() {
-  unlockAlarmAudio();
-
   const context = getAudioContext();
   if (!context) {
     return;
@@ -217,33 +180,46 @@ function playTone(pattern: Array<{ frequency: number; duration: number; gap?: nu
   });
 }
 
-function playAlarmAudio(onFallback: () => void) {
-  const audio = getAlarmAudio();
-  if (!audio) {
-    return false;
-  }
-
-  audio.pause();
-  audio.currentTime = 0;
-  audio.muted = false;
-  const playPromise = audio.play();
-  void playPromise.catch(onFallback);
-  return true;
-}
-
-function playAlarmBuffer() {
+function startAlarmBuffer(buffer: AudioBuffer) {
   const context = getAudioContext();
-  if (!context || !sharedAlarmBuffer) {
-    void loadAlarmBuffer();
-    return false;
+  if (!context) {
+    return;
   }
 
   void context.resume();
   const source = context.createBufferSource();
-  source.buffer = sharedAlarmBuffer;
-  source.connect(context.destination);
-  source.start();
+  const gain = context.createGain();
+  gain.gain.value = 1;
+  source.buffer = buffer;
+  source.connect(gain);
+  gain.connect(context.destination);
+  source.start(context.currentTime + 0.01);
+}
+
+function playPreparedAlarm() {
+  if (!sharedAlarmBuffer) {
+    return false;
+  }
+
+  startAlarmBuffer(sharedAlarmBuffer);
   return true;
+}
+
+function playAlarmBuffer(onFallback: () => void) {
+  const bufferPromise = loadAlarmBuffer();
+  if (!bufferPromise) {
+    onFallback();
+    return;
+  }
+
+  void bufferPromise.then((buffer) => {
+    if (!buffer) {
+      onFallback();
+      return;
+    }
+
+    startAlarmBuffer(buffer);
+  });
 }
 
 function playAlarmTone(type: AlarmType) {
@@ -271,9 +247,8 @@ function playAlarmTone(type: AlarmType) {
 }
 
 function playAlarm(type: AlarmType) {
-  const didStartAudio = playAlarmBuffer() || playAlarmAudio(() => playAlarmTone(type));
-  if (!didStartAudio) {
-    playAlarmTone(type);
+  if (!playPreparedAlarm()) {
+    playAlarmBuffer(() => playAlarmTone(type));
   }
 
   if (type === "reading-end") {
