@@ -6,11 +6,15 @@ The app is currently timer-only. AI patient, examiner, auth, and API features ar
 
 ## Features
 
-- Official NAC timing rhythm: 2 minutes between stations and 11 minutes per station
+- Practice mode for one station
+- Full exam mode for a 12-station circuit
+- Case type selection before starting: counselling or non-counselling
+- NAC-style signal schedule: 2-minute reading signal, 8-minute encounter signal, and 11-minute final signal
+- Non-counselling flow: 2 minutes reading, 8 minutes encounter, 3 minutes post-encounter questions
+- Counselling flow: 2 minutes reading, 11 minutes encounter
 - Mobile-first timer display for solo practice
-- Configurable circuit length
-- Auto-advance between move/read and station phases
-- Audible alarm patterns and optional 1-minute practice warning
+- Auto-advance between stations
+- Audible alarm patterns with vibration where supported
 - Static export for GitHub Pages
 
 ## Setup
