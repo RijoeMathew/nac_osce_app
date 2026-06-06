@@ -23,20 +23,20 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --app-bg: #0e1723;
-  --surface: #152233;
-  --surface-muted: #1b2a3c;
-  --text: #e7eef6;
-  --text-soft: #c8d2df;
-  --text-muted: #95a5b8;
-  --timer-bg: #102b33;
-  --warning-bg: #331619;
-  --clinical-blue: #4f8cff;
-  --clinical-teal: #36c8bd;
-  --clinical-navy: #e7eef6;
-  --clinical-mist: #12363f;
-  --clinical-line: #2c3e52;
-  --shadow-panel: 0 18px 40px rgba(0, 0, 0, 0.26);
+  --app-bg: #000000;
+  --surface: #050505;
+  --surface-muted: #101114;
+  --text: #f4f7fb;
+  --text-soft: #d8e0ea;
+  --text-muted: #8e9aa8;
+  --timer-bg: #000000;
+  --warning-bg: #24080b;
+  --clinical-blue: #3b82f6;
+  --clinical-teal: #60a5fa;
+  --clinical-navy: #f4f7fb;
+  --clinical-mist: #071426;
+  --clinical-line: #22262d;
+  --shadow-panel: 0 18px 40px rgba(0, 0, 0, 0.72);
 }
 
 html {
