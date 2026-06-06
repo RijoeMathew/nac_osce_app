@@ -30,7 +30,9 @@ const EIGHT_MINUTE_SECONDS = 8 * 60;
 const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
+const ALARM_AUDIO_SRC = "/alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
+let sharedAlarmAudio: HTMLAudioElement | null = null;
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -102,7 +104,43 @@ function getAudioContext() {
   return sharedAudioContext;
 }
 
+function getAlarmAudio() {
+  if (typeof Audio === "undefined") {
+    return null;
+  }
+
+  if (!sharedAlarmAudio) {
+    sharedAlarmAudio = new Audio(ALARM_AUDIO_SRC);
+    sharedAlarmAudio.preload = "auto";
+  }
+
+  return sharedAlarmAudio;
+}
+
+function unlockAlarmAudio() {
+  const audio = getAlarmAudio();
+  if (!audio) {
+    return;
+  }
+
+  const wasMuted = audio.muted;
+  audio.muted = true;
+  audio.currentTime = 0;
+  const playPromise = audio.play();
+  void playPromise
+    .then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = wasMuted;
+    })
+    .catch(() => {
+      audio.muted = wasMuted;
+    });
+}
+
 function unlockAudio() {
+  unlockAlarmAudio();
+
   const context = getAudioContext();
   if (!context) {
     return;
@@ -144,13 +182,26 @@ function playTone(pattern: Array<{ frequency: number; duration: number; gap?: nu
   });
 }
 
-function playAlarm(type: AlarmType) {
+function playAlarmAudio(onFallback: () => void) {
+  const audio = getAlarmAudio();
+  if (!audio) {
+    return false;
+  }
+
+  audio.pause();
+  audio.currentTime = 0;
+  audio.muted = false;
+  const playPromise = audio.play();
+  void playPromise.catch(onFallback);
+  return true;
+}
+
+function playAlarmTone(type: AlarmType) {
   if (type === "reading-end") {
     playTone([
       { frequency: 760, duration: 0.28 },
       { frequency: 760, duration: 0.28 }
     ]);
-    navigator.vibrate?.([160, 80, 160]);
     return;
   }
 
@@ -159,7 +210,6 @@ function playAlarm(type: AlarmType) {
       { frequency: 620, duration: 0.26 },
       { frequency: 820, duration: 0.26 }
     ]);
-    navigator.vibrate?.([140, 70, 140]);
     return;
   }
 
@@ -168,6 +218,24 @@ function playAlarm(type: AlarmType) {
     { frequency: 420, duration: 0.48, gap: 0.1 },
     { frequency: 420, duration: 0.7 }
   ]);
+}
+
+function playAlarm(type: AlarmType) {
+  const didStartAudio = playAlarmAudio(() => playAlarmTone(type));
+  if (!didStartAudio) {
+    playAlarmTone(type);
+  }
+
+  if (type === "reading-end") {
+    navigator.vibrate?.([160, 80, 160]);
+    return;
+  }
+
+  if (type === "eight-minute") {
+    navigator.vibrate?.([140, 70, 140]);
+    return;
+  }
+
   navigator.vibrate?.([240, 100, 240, 100, 340]);
 }
 
