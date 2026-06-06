@@ -35,6 +35,7 @@ let sharedAudioContext: AudioContext | null = null;
 let sharedAlarmAudio: HTMLAudioElement | null = null;
 let sharedAlarmBuffer: AudioBuffer | null = null;
 let sharedAlarmBufferPromise: Promise<AudioBuffer | null> | null = null;
+let sharedAlarmUnlocked = false;
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -115,6 +116,8 @@ function getAlarmAudio() {
     sharedAlarmAudio = new Audio(ALARM_AUDIO_SRC);
     sharedAlarmAudio.preload = "auto";
     sharedAlarmAudio.volume = 1;
+    sharedAlarmAudio.setAttribute("playsinline", "true");
+    sharedAlarmAudio.setAttribute("webkit-playsinline", "true");
   }
 
   return sharedAlarmAudio;
@@ -154,20 +157,40 @@ function loadAlarmBuffer() {
 
 function unlockAudio() {
   const context = getAudioContext();
-  if (!context) {
+  const audio = getAlarmAudio();
+
+  if (context) {
+    void context.resume();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    gain.gain.value = 0.0001;
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.01);
+    void loadAlarmBuffer();
+  }
+
+  if (!audio || sharedAlarmUnlocked) {
     return;
   }
 
-  void context.resume();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  gain.gain.value = 0.0001;
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.01);
-  getAlarmAudio()?.load();
-  void loadAlarmBuffer();
+  audio.load();
+  audio.currentTime = 0;
+  audio.volume = 0.04;
+  const playPromise = audio.play();
+  void playPromise
+    .then(() => {
+      sharedAlarmUnlocked = true;
+      window.setTimeout(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 1;
+      }, 120);
+    })
+    .catch(() => {
+      audio.volume = 1;
+    });
 }
 
 function startAlarmBuffer(buffer: AudioBuffer) {
@@ -221,13 +244,20 @@ function playAlarmElement() {
   audio.pause();
   audio.currentTime = 0;
   audio.volume = 1;
-  void audio.play().catch(() => undefined);
+  const playPromise = audio.play();
+  void playPromise
+    .then(() => {
+      sharedAlarmUnlocked = true;
+    })
+    .catch(() => {
+      if (!playPreparedAlarm()) {
+        playAlarmBuffer(() => undefined);
+      }
+    });
 }
 
 function playAlarm(type: AlarmType) {
-  if (!playPreparedAlarm()) {
-    playAlarmBuffer(playAlarmElement);
-  }
+  playAlarmElement();
 
   if (type === "reading-end") {
     navigator.vibrate?.([160, 80, 160]);
@@ -281,6 +311,7 @@ export function NacOsceTimer() {
 
   const stationCount = getStationCount(mode);
   const phaseDuration = getPhaseDuration(phase, caseType);
+  const elapsedSeconds = phaseDuration - secondsRemaining;
   const progress = useMemo(() => {
     if (phase === "complete") {
       return 100;
@@ -292,6 +323,7 @@ export function NacOsceTimer() {
 
     return Math.round(((phaseDuration - secondsRemaining) / phaseDuration) * 100);
   }, [phase, phaseDuration, secondsRemaining]);
+  const canSeek = phase !== "complete" && phase !== "station-complete";
 
   const currentSignal = useMemo(() => {
     if (phase === "reading") {
@@ -342,6 +374,18 @@ export function NacOsceTimer() {
       setIsRunning(false);
     },
     [caseType, mode]
+  );
+
+  const seekTimer = useCallback(
+    (elapsedValue: number) => {
+      if (!canSeek) {
+        return;
+      }
+
+      const nextElapsed = Math.min(Math.max(elapsedValue, 0), phaseDuration);
+      setSecondsRemaining(phaseDuration - nextElapsed);
+    },
+    [canSeek, phaseDuration]
   );
 
   const finishStation = useCallback(() => {
@@ -545,6 +589,23 @@ export function NacOsceTimer() {
                 className={`h-full rounded-full ${isWarning ? "bg-red-500" : "bg-clinical-teal"}`}
                 style={{ width: `${progress}%` }}
               />
+            </div>
+            <div className="mt-4">
+              <input
+                type="range"
+                min={0}
+                max={phaseDuration}
+                step={1}
+                value={canSeek ? elapsedSeconds : phaseDuration}
+                onChange={(event) => seekTimer(Number(event.target.value))}
+                disabled={!canSeek}
+                aria-label="Adjust timer position"
+                className="time-slider w-full accent-clinical-teal disabled:opacity-50"
+              />
+              <div className="mt-2 flex items-center justify-between text-xs font-semibold text-[var(--text-muted)]">
+                <span>{formatTime(canSeek ? elapsedSeconds : phaseDuration)} elapsed</span>
+                <span>{formatTime(canSeek ? secondsRemaining : 0)} remaining</span>
+              </div>
             </div>
             <p className="mt-3 text-center text-sm font-semibold text-[var(--text-soft)]">{currentSignal}</p>
           </div>
