@@ -598,24 +598,29 @@ export function NacOsceTimer() {
 
           <div className="mt-8">
             <div
-              className={`mx-auto flex aspect-square w-full max-w-[18rem] items-center justify-center rounded-full border-[10px] sm:max-w-[21rem] ${
-                isWarning ? "timer-warning border-red-500 bg-[var(--warning-bg)]" : "border-clinical-teal bg-[var(--timer-bg)]"
+              className={`mx-auto flex aspect-square w-full max-w-[18rem] items-center justify-center rounded-full p-[10px] sm:max-w-[21rem] ${
+                isWarning ? "timer-warning" : ""
               }`}
+              style={{
+                background: `conic-gradient(${
+                  isWarning ? "#ef4444" : "var(--clinical-teal)"
+                } ${progress}%, var(--surface-muted) 0)`
+              }}
             >
-              <div className="text-center">
-                <p className={`font-mono text-6xl font-semibold sm:text-7xl ${isWarning ? "text-red-700" : "text-clinical-navy"}`}>
-                  {formatTime(secondsRemaining)}
-                </p>
-                <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                  {phase === "complete" ? "Done" : isRunning ? "Running" : "Paused"}
-                </p>
-              </div>
-            </div>
-            <div className="mt-6 h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]">
               <div
-                className={`h-full rounded-full ${isWarning ? "bg-red-500" : "bg-clinical-teal"}`}
-                style={{ width: `${progress}%` }}
-              />
+                className={`flex h-full w-full items-center justify-center rounded-full ${
+                  isWarning ? "bg-[var(--warning-bg)]" : "bg-[var(--timer-bg)]"
+                }`}
+              >
+                <div className="text-center">
+                  <p className={`font-mono text-6xl font-semibold sm:text-7xl ${isWarning ? "text-red-700" : "text-clinical-navy"}`}>
+                    {formatTime(secondsRemaining)}
+                  </p>
+                  <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {phase === "complete" ? "Done" : isRunning ? "Running" : "Paused"}
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="mt-4">
               <input
