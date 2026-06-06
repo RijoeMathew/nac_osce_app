@@ -30,8 +30,9 @@ const EIGHT_MINUTE_SECONDS = 8 * 60;
 const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
-const ALARM_AUDIO_SRC = "/alarm.m4a";
+const ALARM_AUDIO_SRC = "alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
+let sharedAlarmAudio: HTMLAudioElement | null = null;
 let sharedAlarmBuffer: AudioBuffer | null = null;
 let sharedAlarmBufferPromise: Promise<AudioBuffer | null> | null = null;
 
@@ -105,6 +106,20 @@ function getAudioContext() {
   return sharedAudioContext;
 }
 
+function getAlarmAudio() {
+  if (typeof Audio === "undefined") {
+    return null;
+  }
+
+  if (!sharedAlarmAudio) {
+    sharedAlarmAudio = new Audio(ALARM_AUDIO_SRC);
+    sharedAlarmAudio.preload = "auto";
+    sharedAlarmAudio.volume = 1;
+  }
+
+  return sharedAlarmAudio;
+}
+
 function loadAlarmBuffer() {
   const context = getAudioContext();
   if (!context) {
@@ -151,33 +166,8 @@ function unlockAudio() {
   gain.connect(context.destination);
   oscillator.start();
   oscillator.stop(context.currentTime + 0.01);
+  getAlarmAudio()?.load();
   void loadAlarmBuffer();
-}
-
-function playTone(pattern: Array<{ frequency: number; duration: number; gap?: number }>) {
-  const context = getAudioContext();
-  if (!context) {
-    return;
-  }
-
-  void context.resume();
-  let offset = 0;
-  const startAt = context.currentTime + 0.03;
-
-  pattern.forEach((item) => {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = "square";
-    oscillator.frequency.value = item.frequency;
-    gain.gain.setValueAtTime(0.0001, startAt + offset);
-    gain.gain.exponentialRampToValueAtTime(0.22, startAt + offset + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + item.duration);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(startAt + offset);
-    oscillator.stop(startAt + offset + item.duration);
-    offset += item.duration + (item.gap ?? 0.08);
-  });
 }
 
 function startAlarmBuffer(buffer: AudioBuffer) {
@@ -222,33 +212,21 @@ function playAlarmBuffer(onFallback: () => void) {
   });
 }
 
-function playAlarmTone(type: AlarmType) {
-  if (type === "reading-end") {
-    playTone([
-      { frequency: 760, duration: 0.28 },
-      { frequency: 760, duration: 0.28 }
-    ]);
+function playAlarmElement() {
+  const audio = getAlarmAudio();
+  if (!audio) {
     return;
   }
 
-  if (type === "eight-minute") {
-    playTone([
-      { frequency: 620, duration: 0.26 },
-      { frequency: 820, duration: 0.26 }
-    ]);
-    return;
-  }
-
-  playTone([
-    { frequency: 420, duration: 0.48, gap: 0.1 },
-    { frequency: 420, duration: 0.48, gap: 0.1 },
-    { frequency: 420, duration: 0.7 }
-  ]);
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = 1;
+  void audio.play().catch(() => undefined);
 }
 
 function playAlarm(type: AlarmType) {
   if (!playPreparedAlarm()) {
-    playAlarmBuffer(() => playAlarmTone(type));
+    playAlarmBuffer(playAlarmElement);
   }
 
   if (type === "reading-end") {
