@@ -9,15 +9,15 @@ const config: Config = {
     extend: {
       colors: {
         clinical: {
-          blue: "#2563eb",
-          teal: "#0f9f9a",
-          navy: "#153047",
-          mist: "#e9f8f7",
-          line: "#dbe7ee"
+          blue: "var(--clinical-blue)",
+          teal: "var(--clinical-teal)",
+          navy: "var(--clinical-navy)",
+          mist: "var(--clinical-mist)",
+          line: "var(--clinical-line)"
         }
       },
       boxShadow: {
-        panel: "0 18px 40px rgba(21, 48, 71, 0.08)"
+        panel: "var(--shadow-panel)"
       }
     }
   },

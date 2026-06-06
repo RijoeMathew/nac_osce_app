@@ -1,21 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   CheckCircle2,
   Clock3,
   FileQuestion,
+  Moon,
   Pause,
   Play,
   RotateCcw,
   SkipForward,
   Stethoscope,
+  Sun,
   Volume2
 } from "lucide-react";
 
 type TimerMode = "practice" | "exam";
-type CaseType = "counselling" | "other";
+type CaseType = "with-questions" | "without-questions";
+type Theme = "light" | "dark";
 type TimerPhase = "reading" | "encounter" | "questions" | "station-complete" | "complete";
 type AlarmType = "reading-end" | "eight-minute" | "station-end";
 type WindowWithAudioFallback = Window & {
@@ -27,6 +30,7 @@ const EIGHT_MINUTE_SECONDS = 8 * 60;
 const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
+let sharedAudioContext: AudioContext | null = null;
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -45,7 +49,7 @@ function getInitialPhaseSeconds() {
 }
 
 function getEncounterSeconds(caseType: CaseType) {
-  return caseType === "counselling" ? FULL_ENCOUNTER_SECONDS : EIGHT_MINUTE_SECONDS;
+  return caseType === "without-questions" ? FULL_ENCOUNTER_SECONDS : EIGHT_MINUTE_SECONDS;
 }
 
 function getPhaseLabel(phase: TimerPhase) {
@@ -84,32 +88,60 @@ function getPhaseDuration(phase: TimerPhase, caseType: CaseType) {
   return 1;
 }
 
-function playTone(pattern: Array<{ frequency: number; duration: number; gap?: number }>) {
+function getAudioContext() {
   const AudioContextConstructor =
     window.AudioContext ?? (window as WindowWithAudioFallback).webkitAudioContext;
   if (!AudioContextConstructor) {
+    return null;
+  }
+
+  if (!sharedAudioContext || sharedAudioContext.state === "closed") {
+    sharedAudioContext = new AudioContextConstructor();
+  }
+
+  return sharedAudioContext;
+}
+
+function unlockAudio() {
+  const context = getAudioContext();
+  if (!context) {
     return;
   }
 
-  const context = new AudioContextConstructor();
+  void context.resume();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  gain.gain.value = 0.0001;
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.01);
+}
+
+function playTone(pattern: Array<{ frequency: number; duration: number; gap?: number }>) {
+  const context = getAudioContext();
+  if (!context) {
+    return;
+  }
+
+  void context.resume();
   let offset = 0;
+  const startAt = context.currentTime + 0.03;
 
   pattern.forEach((item) => {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = "square";
     oscillator.frequency.value = item.frequency;
-    gain.gain.setValueAtTime(0.0001, context.currentTime + offset);
-    gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + offset + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + offset + item.duration);
+    gain.gain.setValueAtTime(0.0001, startAt + offset);
+    gain.gain.exponentialRampToValueAtTime(0.22, startAt + offset + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + item.duration);
     oscillator.connect(gain);
     gain.connect(context.destination);
-    oscillator.start(context.currentTime + offset);
-    oscillator.stop(context.currentTime + offset + item.duration);
+    oscillator.start(startAt + offset);
+    oscillator.stop(startAt + offset + item.duration);
     offset += item.duration + (item.gap ?? 0.08);
   });
-
-  window.setTimeout(() => void context.close(), Math.ceil((offset + 0.2) * 1000));
 }
 
 function playAlarm(type: AlarmType) {
@@ -144,20 +176,37 @@ function getModeDescription(mode: TimerMode) {
 }
 
 function getCaseTypeDescription(caseType: CaseType) {
-  return caseType === "counselling"
-    ? "2 min reading, 11 min encounter"
-    : "2 min reading, 8 min encounter, 3 min questions";
+  return caseType === "with-questions"
+    ? "2 min reading, 8 min encounter, 3 min questions"
+    : "2 min reading, 11 min encounter";
 }
 
 export function NacOsceTimer() {
   const [mode, setMode] = useState<TimerMode>("practice");
-  const [caseType, setCaseType] = useState<CaseType>("other");
+  const [caseType, setCaseType] = useState<CaseType>("with-questions");
+  const [theme, setTheme] = useState<Theme>("light");
   const [phase, setPhase] = useState<TimerPhase>("reading");
   const [secondsRemaining, setSecondsRemaining] = useState(getInitialPhaseSeconds);
   const [stationIndex, setStationIndex] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
-  const eightMinuteAlarmPlayedRef = useRef(false);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("nac-osce-theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+      return;
+    }
+
+    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      setTheme("dark");
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("nac-osce-theme", theme);
+  }, [theme]);
 
   const stationCount = getStationCount(mode);
   const phaseDuration = getPhaseDuration(phase, caseType);
@@ -178,14 +227,12 @@ export function NacOsceTimer() {
       return "Next alarm: enter room at 2:00";
     }
 
-    if (phase === "encounter" && caseType === "counselling") {
-      return secondsRemaining > QUESTIONS_SECONDS
-        ? "Next alarm: 8-minute signal"
-        : "Next alarm: final 11-minute signal";
+    if (phase === "encounter" && caseType === "with-questions") {
+      return "Next alarm: 8-minute oral-question signal";
     }
 
     if (phase === "encounter") {
-      return "Next alarm: 8-minute signal";
+      return "Next alarm: final 11-minute signal";
     }
 
     if (phase === "questions") {
@@ -193,9 +240,26 @@ export function NacOsceTimer() {
     }
 
     return "Timer stopped";
-  }, [caseType, phase, secondsRemaining]);
+  }, [caseType, phase]);
 
-  const isWarning = phase === "questions" || (phase === "encounter" && caseType === "counselling" && secondsRemaining <= QUESTIONS_SECONDS);
+  const isWarning =
+    phase === "questions" ||
+    (phase === "encounter" && caseType === "without-questions" && secondsRemaining <= QUESTIONS_SECONDS);
+  const signalItems = useMemo(
+    () =>
+      caseType === "with-questions"
+        ? [
+            { icon: Clock3, label: "Reading", value: "2:00" },
+            { icon: Stethoscope, label: "Encounter closes", value: "8:00" },
+            { icon: FileQuestion, label: "Final signal", value: "11:00" }
+          ]
+        : [
+            { icon: Clock3, label: "Reading", value: "2:00" },
+            { icon: Stethoscope, label: "Final encounter signal", value: "11:00" }
+          ],
+    [caseType]
+  );
+  const signalSchedule = caseType === "with-questions" ? "2:00, 8:00, 11:00" : "2:00, 11:00";
 
   const resetTimer = useCallback(
     (nextMode = mode, nextCaseType = caseType) => {
@@ -205,7 +269,6 @@ export function NacOsceTimer() {
       setSecondsRemaining(READING_SECONDS);
       setStationIndex(1);
       setIsRunning(false);
-      eightMinuteAlarmPlayedRef.current = false;
     },
     [caseType, mode]
   );
@@ -230,7 +293,6 @@ export function NacOsceTimer() {
     setStationIndex((current) => current + 1);
     setPhase("reading");
     setSecondsRemaining(READING_SECONDS);
-    eightMinuteAlarmPlayedRef.current = false;
   }, [autoAdvance, stationCount, stationIndex]);
 
   const moveToNextPhase = useCallback(() => {
@@ -238,18 +300,10 @@ export function NacOsceTimer() {
       playAlarm("reading-end");
       setPhase("encounter");
       setSecondsRemaining(getEncounterSeconds(caseType));
-      eightMinuteAlarmPlayedRef.current = false;
       return;
     }
 
-    if (phase === "encounter" && caseType === "counselling" && secondsRemaining > QUESTIONS_SECONDS) {
-      playAlarm("eight-minute");
-      setSecondsRemaining(QUESTIONS_SECONDS);
-      eightMinuteAlarmPlayedRef.current = true;
-      return;
-    }
-
-    if (phase === "encounter" && caseType === "other") {
+    if (phase === "encounter" && caseType === "with-questions") {
       playAlarm("eight-minute");
       setPhase("questions");
       setSecondsRemaining(QUESTIONS_SECONDS);
@@ -266,9 +320,8 @@ export function NacOsceTimer() {
       setPhase("reading");
       setSecondsRemaining(READING_SECONDS);
       setIsRunning(true);
-      eightMinuteAlarmPlayedRef.current = false;
     }
-  }, [caseType, finishStation, phase, secondsRemaining, stationCount]);
+  }, [caseType, finishStation, phase, stationCount]);
 
   useEffect(() => {
     if (!isRunning || phase === "complete" || phase === "station-complete") {
@@ -277,16 +330,6 @@ export function NacOsceTimer() {
 
     const interval = window.setInterval(() => {
       setSecondsRemaining((current) => {
-        if (
-          phase === "encounter" &&
-          caseType === "counselling" &&
-          current === QUESTIONS_SECONDS + 1 &&
-          !eightMinuteAlarmPlayedRef.current
-        ) {
-          eightMinuteAlarmPlayedRef.current = true;
-          playAlarm("eight-minute");
-        }
-
         if (current <= 1) {
           window.clearInterval(interval);
           window.setTimeout(moveToNextPhase, 0);
@@ -301,25 +344,36 @@ export function NacOsceTimer() {
   }, [caseType, isRunning, moveToNextPhase, phase]);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f7fafc] text-slate-950">
+    <main className="min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--text)]">
       <div className="mx-4 flex min-h-screen flex-col py-4 sm:mx-auto sm:w-full sm:max-w-5xl sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-3 py-2">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-clinical-teal">NAC OSCE timer</p>
-            <h1 className="text-2xl font-semibold text-clinical-navy sm:text-3xl">Practice timer</h1>
+            <h1 className="text-2xl font-semibold text-[var(--text)] sm:text-3xl">Practice timer</h1>
           </div>
-          <button
-            type="button"
-            onClick={() => playAlarm("reading-end")}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-clinical-line bg-white text-clinical-navy shadow-sm hover:bg-slate-50"
-            aria-label="Test alarm"
-            title="Test alarm"
-          >
-            <Volume2 size={19} />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => playAlarm("reading-end")}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-clinical-line bg-[var(--surface)] text-[var(--text)] shadow-sm hover:bg-[var(--surface-muted)]"
+              aria-label="Test alarm"
+              title="Test alarm"
+            >
+              <Volume2 size={19} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-clinical-line bg-[var(--surface)] text-[var(--text)] shadow-sm hover:bg-[var(--surface-muted)]"
+              aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+              title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+            >
+              {theme === "light" ? <Moon size={19} /> : <Sun size={19} />}
+            </button>
+          </div>
         </header>
 
-        <section className="mt-4 w-full rounded-lg border border-clinical-line bg-white p-4 shadow-panel sm:p-5">
+        <section className="mt-4 w-full rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="text-sm font-semibold text-clinical-navy">Mode</p>
@@ -332,20 +386,20 @@ export function NacOsceTimer() {
                     className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
                       mode === option
                         ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
-                        : "border-clinical-line bg-white text-slate-700"
+                        : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
                     }`}
                   >
                     <span className="block capitalize">{option}</span>
-                    <span className="mt-1 block text-xs font-medium text-slate-500">{getModeDescription(option)}</span>
+                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getModeDescription(option)}</span>
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-clinical-navy">Case type</p>
+              <p className="text-sm font-semibold text-clinical-navy">Station type</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {(["other", "counselling"] as const).map((option) => (
+                {(["with-questions", "without-questions"] as const).map((option) => (
                   <button
                     key={option}
                     type="button"
@@ -353,11 +407,11 @@ export function NacOsceTimer() {
                     className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
                       caseType === option
                         ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
-                        : "border-clinical-line bg-white text-slate-700"
+                        : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
                     }`}
                   >
-                    <span className="block">{option === "other" ? "Non-counselling" : "Counselling"}</span>
-                    <span className="mt-1 block text-xs font-medium text-slate-500">{getCaseTypeDescription(option)}</span>
+                    <span className="block">{option === "with-questions" ? "With oral questions" : "Without oral questions"}</span>
+                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getCaseTypeDescription(option)}</span>
                   </button>
                 ))}
               </div>
@@ -365,10 +419,10 @@ export function NacOsceTimer() {
           </div>
         </section>
 
-        <section className="mt-4 flex w-full min-w-0 flex-1 flex-col justify-center rounded-lg border border-clinical-line bg-white p-4 shadow-panel sm:p-6">
+        <section className="mt-4 flex w-full min-w-0 flex-1 flex-col justify-center rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-6">
           <div className="grid gap-4 sm:flex sm:items-start sm:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Station {stationIndex} of {stationCount}
               </p>
               <p className="mt-2 inline-flex items-center gap-2 rounded-md bg-clinical-mist px-3 py-1 text-sm font-semibold text-clinical-navy">
@@ -377,21 +431,17 @@ export function NacOsceTimer() {
               </p>
             </div>
             <div className="text-left sm:text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Signal schedule</p>
-              <p className="mt-1 text-sm font-semibold text-clinical-navy">2:00, 8:00, 11:00</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Signal schedule</p>
+              <p className="mt-1 text-sm font-semibold text-clinical-navy">{signalSchedule}</p>
             </div>
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
-            {[
-              { icon: Clock3, label: "Reading", value: "2:00" },
-              { icon: Stethoscope, label: "Encounter signal", value: "8:00" },
-              { icon: FileQuestion, label: "Final signal", value: "11:00" }
-            ].map((item) => {
+            {signalItems.map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.label} className="rounded-md border border-clinical-line bg-slate-50 px-3 py-2">
-                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div key={item.label} className="rounded-md border border-clinical-line bg-[var(--surface-muted)] px-3 py-2">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     <Icon size={14} />
                     {item.label}
                   </p>
@@ -404,31 +454,34 @@ export function NacOsceTimer() {
           <div className="mt-8">
             <div
               className={`mx-auto flex aspect-square w-full max-w-[18rem] items-center justify-center rounded-full border-[10px] sm:max-w-[21rem] ${
-                isWarning ? "timer-warning border-red-500 bg-red-50" : "border-clinical-teal bg-[#f9fefe]"
+                isWarning ? "timer-warning border-red-500 bg-[var(--warning-bg)]" : "border-clinical-teal bg-[var(--timer-bg)]"
               }`}
             >
               <div className="text-center">
                 <p className={`font-mono text-6xl font-semibold sm:text-7xl ${isWarning ? "text-red-700" : "text-clinical-navy"}`}>
                   {formatTime(secondsRemaining)}
                 </p>
-                <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   {phase === "complete" ? "Done" : isRunning ? "Running" : "Paused"}
                 </p>
               </div>
             </div>
-            <div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-6 h-3 overflow-hidden rounded-full bg-[var(--surface-muted)]">
               <div
                 className={`h-full rounded-full ${isWarning ? "bg-red-500" : "bg-clinical-teal"}`}
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="mt-3 text-center text-sm font-semibold text-slate-600">{currentSignal}</p>
+            <p className="mt-3 text-center text-sm font-semibold text-[var(--text-soft)]">{currentSignal}</p>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <button
               type="button"
-              onClick={() => setIsRunning((current) => !current)}
+              onClick={() => {
+                unlockAudio();
+                setIsRunning((current) => !current);
+              }}
               disabled={phase === "complete" || phase === "station-complete"}
               className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-md bg-clinical-blue px-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -437,9 +490,12 @@ export function NacOsceTimer() {
             </button>
             <button
               type="button"
-              onClick={moveToNextPhase}
+              onClick={() => {
+                unlockAudio();
+                moveToNextPhase();
+              }}
               disabled={phase === "complete"}
-              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-md border border-clinical-line bg-white px-3 text-sm font-semibold text-clinical-navy hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-md border border-clinical-line bg-[var(--surface)] px-3 text-sm font-semibold text-clinical-navy hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <SkipForward size={18} />
               {phase === "station-complete" ? "Next station" : "Next signal"}
@@ -447,7 +503,7 @@ export function NacOsceTimer() {
             <button
               type="button"
               onClick={() => resetTimer()}
-              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-md border border-clinical-line bg-white px-3 text-sm font-semibold text-clinical-navy hover:bg-slate-50"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-md border border-clinical-line bg-[var(--surface)] px-3 text-sm font-semibold text-clinical-navy hover:bg-[var(--surface-muted)]"
             >
               <RotateCcw size={18} />
               Reset
@@ -455,11 +511,11 @@ export function NacOsceTimer() {
           </div>
         </section>
 
-        <section className="mt-4 w-full rounded-lg border border-clinical-line bg-white p-4 shadow-panel sm:p-5">
+        <section className="mt-4 w-full rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-5">
           <label className="flex items-center justify-between gap-3 rounded-md border border-clinical-line px-3 py-3">
             <span>
-              <span className="block text-sm font-semibold text-slate-700">Auto-advance stations</span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">
+              <span className="block text-sm font-semibold text-[var(--text-soft)]">Auto-advance stations</span>
+              <span className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">
                 Useful for full 12-station mode.
               </span>
             </span>
@@ -472,9 +528,11 @@ export function NacOsceTimer() {
           </label>
         </section>
 
-        <footer className="px-2 py-4 text-center text-xs leading-5 text-slate-500">
+        <footer className="px-2 py-4 text-center text-xs leading-5 text-[var(--text-muted)]">
           <span className="block">NAC practice signals:</span>
-          <span className="block">2 min reading, 8 min encounter signal, 11 min final signal.</span>
+          <span className="block">
+            With oral questions: 2 min reading, 8 min encounter, 3 min questions. Without oral questions: 2 min reading, 11 min encounter.
+          </span>
         </footer>
       </div>
     </main>
