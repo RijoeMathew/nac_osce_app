@@ -33,6 +33,8 @@ const EXAM_STATIONS = 12;
 const ALARM_AUDIO_SRC = "/alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
 let sharedAlarmAudio: HTMLAudioElement | null = null;
+let sharedAlarmBuffer: AudioBuffer | null = null;
+let sharedAlarmBufferPromise: Promise<AudioBuffer | null> | null = null;
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
@@ -117,6 +119,38 @@ function getAlarmAudio() {
   return sharedAlarmAudio;
 }
 
+function loadAlarmBuffer() {
+  const context = getAudioContext();
+  if (!context) {
+    return null;
+  }
+
+  if (sharedAlarmBuffer) {
+    return Promise.resolve(sharedAlarmBuffer);
+  }
+
+  if (sharedAlarmBufferPromise) {
+    return sharedAlarmBufferPromise;
+  }
+
+  sharedAlarmBufferPromise = fetch(ALARM_AUDIO_SRC)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Unable to load alarm audio: ${response.status}`);
+      }
+
+      return response.arrayBuffer();
+    })
+    .then((audioData) => context.decodeAudioData(audioData))
+    .then((buffer) => {
+      sharedAlarmBuffer = buffer;
+      return buffer;
+    })
+    .catch(() => null);
+
+  return sharedAlarmBufferPromise;
+}
+
 function unlockAlarmAudio() {
   const audio = getAlarmAudio();
   if (!audio) {
@@ -154,6 +188,7 @@ function unlockAudio() {
   gain.connect(context.destination);
   oscillator.start();
   oscillator.stop(context.currentTime + 0.01);
+  void loadAlarmBuffer();
 }
 
 function playTone(pattern: Array<{ frequency: number; duration: number; gap?: number }>) {
@@ -196,6 +231,21 @@ function playAlarmAudio(onFallback: () => void) {
   return true;
 }
 
+function playAlarmBuffer() {
+  const context = getAudioContext();
+  if (!context || !sharedAlarmBuffer) {
+    void loadAlarmBuffer();
+    return false;
+  }
+
+  void context.resume();
+  const source = context.createBufferSource();
+  source.buffer = sharedAlarmBuffer;
+  source.connect(context.destination);
+  source.start();
+  return true;
+}
+
 function playAlarmTone(type: AlarmType) {
   if (type === "reading-end") {
     playTone([
@@ -221,7 +271,7 @@ function playAlarmTone(type: AlarmType) {
 }
 
 function playAlarm(type: AlarmType) {
-  const didStartAudio = playAlarmAudio(() => playAlarmTone(type));
+  const didStartAudio = playAlarmBuffer() || playAlarmAudio(() => playAlarmTone(type));
   if (!didStartAudio) {
     playAlarmTone(type);
   }
@@ -422,7 +472,10 @@ export function NacOsceTimer() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => playAlarm("reading-end")}
+              onClick={() => {
+                unlockAudio();
+                playAlarm("reading-end");
+              }}
               className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-clinical-line bg-[var(--surface)] text-[var(--text)] shadow-sm hover:bg-[var(--surface-muted)]"
               aria-label="Test alarm"
               title="Test alarm"
