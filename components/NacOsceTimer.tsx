@@ -704,13 +704,6 @@ export function NacOsceTimer() {
             />
           </label>
         </section>
-
-        <footer className="px-2 py-4 text-center text-xs leading-5 text-[var(--text-muted)]">
-          <span className="block">NAC practice signals:</span>
-          <span className="block">
-            With oral questions: 2 min reading, 8 min encounter, 3 min questions. Without oral questions: 2 min reading, 11 min encounter.
-          </span>
-        </footer>
       </div>
     </main>
   );
