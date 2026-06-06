@@ -291,6 +291,7 @@ export function NacOsceTimer() {
   const [stationIndex, setStationIndex] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
+  const [seekElapsedSeconds, setSeekElapsedSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("nac-osce-theme");
@@ -312,6 +313,7 @@ export function NacOsceTimer() {
   const stationCount = getStationCount(mode);
   const phaseDuration = getPhaseDuration(phase, caseType);
   const elapsedSeconds = phaseDuration - secondsRemaining;
+  const sliderElapsedSeconds = seekElapsedSeconds ?? elapsedSeconds;
   const progress = useMemo(() => {
     if (phase === "complete") {
       return 100;
@@ -372,11 +374,12 @@ export function NacOsceTimer() {
       setSecondsRemaining(READING_SECONDS);
       setStationIndex(1);
       setIsRunning(false);
+      setSeekElapsedSeconds(null);
     },
     [caseType, mode]
   );
 
-  const seekTimer = useCallback(
+  const commitSeek = useCallback(
     (elapsedValue: number) => {
       if (!canSeek) {
         return;
@@ -387,6 +390,26 @@ export function NacOsceTimer() {
     },
     [canSeek, phaseDuration]
   );
+
+  const updateSeekPreview = useCallback(
+    (elapsedValue: number) => {
+      if (!canSeek) {
+        return;
+      }
+
+      setSeekElapsedSeconds(Math.min(Math.max(elapsedValue, 0), phaseDuration));
+    },
+    [canSeek, phaseDuration]
+  );
+
+  const finishSeek = useCallback(() => {
+    if (seekElapsedSeconds === null) {
+      return;
+    }
+
+    commitSeek(seekElapsedSeconds);
+    setSeekElapsedSeconds(null);
+  }, [commitSeek, seekElapsedSeconds]);
 
   const finishStation = useCallback(() => {
     playAlarm("station-end");
@@ -408,6 +431,7 @@ export function NacOsceTimer() {
     setStationIndex((current) => current + 1);
     setPhase("reading");
     setSecondsRemaining(READING_SECONDS);
+    setSeekElapsedSeconds(null);
   }, [autoAdvance, stationCount, stationIndex]);
 
   const moveToNextPhase = useCallback(() => {
@@ -415,6 +439,7 @@ export function NacOsceTimer() {
       playAlarm("reading-end");
       setPhase("encounter");
       setSecondsRemaining(getEncounterSeconds(caseType));
+      setSeekElapsedSeconds(null);
       return;
     }
 
@@ -422,6 +447,7 @@ export function NacOsceTimer() {
       playAlarm("eight-minute");
       setPhase("questions");
       setSecondsRemaining(QUESTIONS_SECONDS);
+      setSeekElapsedSeconds(null);
       return;
     }
 
@@ -435,6 +461,7 @@ export function NacOsceTimer() {
       setPhase("reading");
       setSecondsRemaining(READING_SECONDS);
       setIsRunning(true);
+      setSeekElapsedSeconds(null);
     }
   }, [caseType, finishStation, phase, stationCount]);
 
@@ -596,15 +623,30 @@ export function NacOsceTimer() {
                 min={0}
                 max={phaseDuration}
                 step={1}
-                value={canSeek ? elapsedSeconds : phaseDuration}
-                onChange={(event) => seekTimer(Number(event.target.value))}
+                value={canSeek ? sliderElapsedSeconds : phaseDuration}
+                onPointerDown={() => {
+                  if (canSeek) {
+                    setSeekElapsedSeconds(elapsedSeconds);
+                  }
+                }}
+                onPointerUp={finishSeek}
+                onPointerCancel={finishSeek}
+                onBlur={finishSeek}
+                onKeyUp={finishSeek}
+                onChange={(event) => {
+                  const nextElapsed = Number(event.target.value);
+                  updateSeekPreview(nextElapsed);
+                  if (seekElapsedSeconds === null) {
+                    commitSeek(nextElapsed);
+                  }
+                }}
                 disabled={!canSeek}
                 aria-label="Adjust timer position"
-                className="time-slider w-full accent-clinical-teal disabled:opacity-50"
+                className="time-slider w-full accent-clinical-teal disabled:cursor-not-allowed disabled:opacity-50"
               />
               <div className="mt-2 flex items-center justify-between text-xs font-semibold text-[var(--text-muted)]">
-                <span>{formatTime(canSeek ? elapsedSeconds : phaseDuration)} elapsed</span>
-                <span>{formatTime(canSeek ? secondsRemaining : 0)} remaining</span>
+                <span>{formatTime(canSeek ? sliderElapsedSeconds : phaseDuration)} elapsed</span>
+                <span>{formatTime(canSeek ? phaseDuration - sliderElapsedSeconds : 0)} remaining</span>
               </div>
             </div>
             <p className="mt-3 text-center text-sm font-semibold text-[var(--text-soft)]">{currentSignal}</p>

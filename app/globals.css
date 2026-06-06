@@ -60,6 +60,54 @@ select {
   animation: pulse-warning 1s ease-in-out infinite;
 }
 
+.time-slider {
+  cursor: grab;
+}
+
+.time-slider:active {
+  cursor: grabbing;
+}
+
+.time-slider::-webkit-slider-runnable-track {
+  cursor: grab;
+}
+
+.time-slider:active::-webkit-slider-runnable-track {
+  cursor: grabbing;
+}
+
+.time-slider::-webkit-slider-thumb {
+  cursor: grab;
+}
+
+.time-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.time-slider::-moz-range-track {
+  cursor: grab;
+}
+
+.time-slider:active::-moz-range-track {
+  cursor: grabbing;
+}
+
+.time-slider::-moz-range-thumb {
+  cursor: grab;
+}
+
+.time-slider:active::-moz-range-thumb {
+  cursor: grabbing;
+}
+
+.time-slider:disabled,
+.time-slider:disabled::-webkit-slider-runnable-track,
+.time-slider:disabled::-webkit-slider-thumb,
+.time-slider:disabled::-moz-range-track,
+.time-slider:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+}
+
 @keyframes pulse-warning {
   0%,
   100% {
