@@ -518,52 +518,6 @@ export function NacOsceTimer() {
           </div>
         </header>
 
-        <section className="mt-4 w-full rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-sm font-semibold text-clinical-navy">Mode</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {(["practice", "exam"] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => resetTimer(option, caseType)}
-                    className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
-                      mode === option
-                        ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
-                        : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
-                    }`}
-                  >
-                    <span className="block capitalize">{option}</span>
-                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getModeDescription(option)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-sm font-semibold text-clinical-navy">Station type</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {(["with-questions", "without-questions"] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => resetTimer(mode, option)}
-                    className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
-                      caseType === option
-                        ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
-                        : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
-                    }`}
-                  >
-                    <span className="block">{option === "with-questions" ? "With oral questions" : "Without oral questions"}</span>
-                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getCaseTypeDescription(option)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className="mt-4 flex w-full min-w-0 flex-1 flex-col justify-center rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-6">
           <div className="grid gap-4 sm:flex sm:items-start sm:justify-between">
             <div>
@@ -690,6 +644,52 @@ export function NacOsceTimer() {
               <RotateCcw size={18} />
               Reset
             </button>
+          </div>
+        </section>
+
+        <section className="mt-4 w-full rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold text-clinical-navy">Mode</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {(["practice", "exam"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => resetTimer(option, caseType)}
+                    className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
+                      mode === option
+                        ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
+                        : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
+                    }`}
+                  >
+                    <span className="block capitalize">{option}</span>
+                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getModeDescription(option)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold text-clinical-navy">Station type</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {(["with-questions", "without-questions"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => resetTimer(mode, option)}
+                    className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
+                      caseType === option
+                        ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
+                        : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
+                    }`}
+                  >
+                    <span className="block">{option === "with-questions" ? "With oral questions" : "Without oral questions"}</span>
+                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getCaseTypeDescription(option)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
