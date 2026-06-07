@@ -66,6 +66,7 @@ select {
   -webkit-appearance: none;
   background: transparent;
   cursor: grab;
+  touch-action: pan-y;
 }
 
 .time-slider:active {
@@ -155,5 +156,31 @@ select {
   html::-webkit-scrollbar,
   body::-webkit-scrollbar {
     display: none;
+  }
+
+  .time-slider {
+    height: 2.75rem;
+    touch-action: none;
+  }
+
+  .time-slider::-webkit-slider-runnable-track {
+    height: 0.8rem;
+  }
+
+  .time-slider::-webkit-slider-thumb {
+    width: 1.85rem;
+    height: 1.85rem;
+    margin-top: -0.525rem;
+    box-shadow: 0 4px 14px rgba(21, 48, 71, 0.24);
+  }
+
+  .time-slider::-moz-range-track {
+    height: 0.8rem;
+  }
+
+  .time-slider::-moz-range-thumb {
+    width: 1.85rem;
+    height: 1.85rem;
+    box-shadow: 0 4px 14px rgba(21, 48, 71, 0.24);
   }
 }
