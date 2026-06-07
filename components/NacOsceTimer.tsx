@@ -31,8 +31,7 @@ const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
 const WARNING_SECONDS = 60;
-const RING_RADIUS = 46;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const RING_RADIUS = 45;
 const ALARM_AUDIO_SRC = "alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
 let sharedAlarmAudio: HTMLAudioElement | null = null;
@@ -324,7 +323,7 @@ export function NacOsceTimer() {
 
     return Math.max(0, Math.min(secondsRemaining / phaseDuration, 1));
   }, [phase, phaseDuration, secondsRemaining]);
-  const ringOffset = RING_CIRCUMFERENCE * (1 - remainingProgress);
+  const ringOffset = 100 - remainingProgress * 100;
   const canSeek = phase !== "complete" && phase !== "station-complete";
 
   const currentSignal = useMemo(() => {
@@ -365,8 +364,6 @@ export function NacOsceTimer() {
           ],
     [caseType]
   );
-  const signalSchedule = caseType === "with-questions" ? "2:00, 8:00, 11:00" : "2:00, 11:00";
-
   const resetTimer = useCallback(
     (nextMode = mode, nextCaseType = caseType) => {
       setMode(nextMode);
@@ -530,41 +527,43 @@ export function NacOsceTimer() {
                 {getPhaseLabel(phase)}
               </p>
             </div>
-            <div className="text-left sm:text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Signal schedule</p>
-              <p className="mt-1 text-sm font-semibold text-clinical-navy">{signalSchedule}</p>
+            <div className="flex items-center gap-2 sm:justify-end">
+              {signalItems.map((item) => {
+                const Icon = item.icon;
+                const label = `${item.label}: ${item.value}`;
+                return (
+                  <span
+                    key={item.label}
+                    aria-label={label}
+                    title={label}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-muted)] text-clinical-navy"
+                  >
+                    <Icon size={17} />
+                  </span>
+                );
+              })}
             </div>
           </div>
 
-          <div className="mt-5 grid gap-2 sm:grid-cols-3">
-            {signalItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="rounded-md border border-clinical-line bg-[var(--surface-muted)] px-3 py-2">
-                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                    <Icon size={14} />
-                    {item.label}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-clinical-navy">{item.value}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-8">
+          <div className="mt-5">
             <div
-              className={`relative mx-auto aspect-square w-full max-w-[18rem] rounded-full sm:max-w-[21rem] ${
+              className={`relative mx-auto aspect-square w-full max-w-[18rem] overflow-visible rounded-full sm:max-w-[21rem] ${
                 isWarning ? "timer-warning" : ""
               }`}
             >
-              <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+              <svg
+                className="absolute inset-0 block h-full w-full -rotate-90 overflow-visible"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="xMidYMid meet"
+                aria-hidden="true"
+              >
                 <circle
                   cx="50"
                   cy="50"
                   r={RING_RADIUS}
                   fill="none"
                   stroke="var(--surface-muted)"
-                  strokeWidth="5"
+                  strokeWidth="6"
                 />
                 <circle
                   cx="50"
@@ -572,9 +571,10 @@ export function NacOsceTimer() {
                   r={RING_RADIUS}
                   fill="none"
                   stroke={isWarning ? "#ef4444" : "var(--clinical-teal)"}
-                  strokeWidth="5"
+                  strokeWidth="6"
                   strokeLinecap="round"
-                  strokeDasharray={RING_CIRCUMFERENCE}
+                  pathLength={100}
+                  strokeDasharray={100}
                   strokeDashoffset={ringOffset}
                   className="transition-[stroke,stroke-dashoffset] duration-500 ease-out"
                 />
