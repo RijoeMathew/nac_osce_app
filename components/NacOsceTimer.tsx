@@ -30,6 +30,9 @@ const EIGHT_MINUTE_SECONDS = 8 * 60;
 const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
+const WARNING_SECONDS = 60;
+const RING_RADIUS = 46;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const ALARM_AUDIO_SRC = "alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
 let sharedAlarmAudio: HTMLAudioElement | null = null;
@@ -314,17 +317,14 @@ export function NacOsceTimer() {
   const phaseDuration = getPhaseDuration(phase, caseType);
   const elapsedSeconds = phaseDuration - secondsRemaining;
   const sliderElapsedSeconds = seekElapsedSeconds ?? elapsedSeconds;
-  const progress = useMemo(() => {
-    if (phase === "complete") {
-      return 100;
+  const remainingProgress = useMemo(() => {
+    if (phase === "complete" || phase === "station-complete") {
+      return 0;
     }
 
-    if (phase === "station-complete") {
-      return 100;
-    }
-
-    return Math.round(((phaseDuration - secondsRemaining) / phaseDuration) * 100);
+    return Math.max(0, Math.min(secondsRemaining / phaseDuration, 1));
   }, [phase, phaseDuration, secondsRemaining]);
+  const ringOffset = RING_CIRCUMFERENCE * (1 - remainingProgress);
   const canSeek = phase !== "complete" && phase !== "station-complete";
 
   const currentSignal = useMemo(() => {
@@ -348,6 +348,7 @@ export function NacOsceTimer() {
   }, [caseType, phase]);
 
   const isWarning =
+    (phase !== "complete" && phase !== "station-complete" && secondsRemaining <= WARNING_SECONDS) ||
     phase === "questions" ||
     (phase === "encounter" && caseType === "without-questions" && secondsRemaining <= QUESTIONS_SECONDS);
   const signalItems = useMemo(
@@ -552,17 +553,34 @@ export function NacOsceTimer() {
 
           <div className="mt-8">
             <div
-              className={`mx-auto flex aspect-square w-full max-w-[18rem] items-center justify-center rounded-full p-[10px] sm:max-w-[21rem] ${
+              className={`relative mx-auto aspect-square w-full max-w-[18rem] rounded-full sm:max-w-[21rem] ${
                 isWarning ? "timer-warning" : ""
               }`}
-              style={{
-                background: `conic-gradient(${
-                  isWarning ? "#ef4444" : "var(--clinical-teal)"
-                } ${progress}%, var(--surface-muted) 0)`
-              }}
             >
+              <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="var(--surface-muted)"
+                  strokeWidth="5"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke={isWarning ? "#ef4444" : "var(--clinical-teal)"}
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={RING_CIRCUMFERENCE}
+                  strokeDashoffset={ringOffset}
+                  className="transition-[stroke,stroke-dashoffset] duration-500 ease-out"
+                />
+              </svg>
               <div
-                className={`flex h-full w-full items-center justify-center rounded-full ${
+                className={`absolute inset-[10px] flex items-center justify-center rounded-full ${
                   isWarning ? "bg-[var(--warning-bg)]" : "bg-[var(--timer-bg)]"
                 }`}
               >
