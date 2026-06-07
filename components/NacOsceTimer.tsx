@@ -4,14 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   CheckCircle2,
-  Clock3,
-  FileQuestion,
   Moon,
   Pause,
   Play,
   RotateCcw,
   SkipForward,
-  Stethoscope,
   Sun,
   Volume2
 } from "lucide-react";
@@ -353,20 +350,6 @@ export function NacOsceTimer() {
 
   const isWarning =
     phase !== "complete" && phase !== "station-complete" && secondsRemaining <= WARNING_SECONDS;
-  const signalItems = useMemo(
-    () =>
-      caseType === "with-questions"
-        ? [
-            { icon: Clock3, label: "Reading", value: "2:00" },
-            { icon: Stethoscope, label: "Encounter closes", value: "8:00" },
-            { icon: FileQuestion, label: "Final signal", value: "11:00" }
-          ]
-        : [
-            { icon: Clock3, label: "Reading", value: "2:00" },
-            { icon: Stethoscope, label: "Final encounter signal", value: "11:00" }
-          ],
-    [caseType]
-  );
   const resetTimer = useCallback(
     (nextMode = mode, nextCaseType = caseType) => {
       setMode(nextMode);
@@ -520,7 +503,7 @@ export function NacOsceTimer() {
         </header>
 
         <section className="mt-4 flex w-full min-w-0 flex-1 flex-col justify-center rounded-lg border border-clinical-line bg-[var(--surface)] p-4 shadow-panel sm:p-6">
-          <div className="grid gap-4 sm:flex sm:items-start sm:justify-between">
+          <div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Station {stationIndex} of {stationCount}
@@ -529,22 +512,6 @@ export function NacOsceTimer() {
                 {phase === "complete" ? <CheckCircle2 size={16} /> : <Bell size={16} />}
                 {getPhaseLabel(phase)}
               </p>
-            </div>
-            <div className="flex items-center gap-2 sm:justify-end">
-              {signalItems.map((item) => {
-                const Icon = item.icon;
-                const label = `${item.label}: ${item.value}`;
-                return (
-                  <span
-                    key={item.label}
-                    aria-label={label}
-                    title={label}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-muted)] text-clinical-navy"
-                  >
-                    <Icon size={17} />
-                  </span>
-                );
-              })}
             </div>
           </div>
 
