@@ -30,8 +30,9 @@ const EIGHT_MINUTE_SECONDS = 8 * 60;
 const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
-const WARNING_SECONDS = 60;
+const WARNING_SECONDS = 30;
 const RING_RADIUS = 45;
+const RING_STROKE_WIDTH = 6;
 const ALARM_AUDIO_SRC = "alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
 let sharedAlarmAudio: HTMLAudioElement | null = null;
@@ -324,6 +325,10 @@ export function NacOsceTimer() {
     return Math.max(0, Math.min(secondsRemaining / phaseDuration, 1));
   }, [phase, phaseDuration, secondsRemaining]);
   const ringOffset = 100 - remainingProgress * 100;
+  const ringCapAngle = remainingProgress * Math.PI * 2;
+  const ringCapX = 50 + RING_RADIUS * Math.cos(ringCapAngle);
+  const ringCapY = 50 + RING_RADIUS * Math.sin(ringCapAngle);
+  const shouldShowRingCap = remainingProgress > 0.01 && remainingProgress < 0.99;
   const canSeek = phase !== "complete" && phase !== "station-complete";
 
   const currentSignal = useMemo(() => {
@@ -347,9 +352,7 @@ export function NacOsceTimer() {
   }, [caseType, phase]);
 
   const isWarning =
-    (phase !== "complete" && phase !== "station-complete" && secondsRemaining <= WARNING_SECONDS) ||
-    phase === "questions" ||
-    (phase === "encounter" && caseType === "without-questions" && secondsRemaining <= QUESTIONS_SECONDS);
+    phase !== "complete" && phase !== "station-complete" && secondsRemaining <= WARNING_SECONDS;
   const signalItems = useMemo(
     () =>
       caseType === "with-questions"
@@ -563,7 +566,7 @@ export function NacOsceTimer() {
                   r={RING_RADIUS}
                   fill="none"
                   stroke="var(--surface-muted)"
-                  strokeWidth="6"
+                  strokeWidth={RING_STROKE_WIDTH}
                 />
                 <circle
                   cx="50"
@@ -571,13 +574,22 @@ export function NacOsceTimer() {
                   r={RING_RADIUS}
                   fill="none"
                   stroke={isWarning ? "#ef4444" : "var(--clinical-teal)"}
-                  strokeWidth="6"
+                  strokeWidth={RING_STROKE_WIDTH}
                   strokeLinecap="round"
                   pathLength={100}
                   strokeDasharray={100}
                   strokeDashoffset={ringOffset}
                   className="transition-[stroke,stroke-dashoffset] duration-500 ease-out"
                 />
+                {shouldShowRingCap ? (
+                  <circle
+                    cx={ringCapX}
+                    cy={ringCapY}
+                    r={RING_STROKE_WIDTH / 2}
+                    fill={isWarning ? "#ef4444" : "var(--clinical-teal)"}
+                    className="transition-[fill,cx,cy] duration-500 ease-out"
+                  />
+                ) : null}
               </svg>
               <div
                 className={`absolute inset-[10px] flex items-center justify-center rounded-full ${
