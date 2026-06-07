@@ -322,10 +322,6 @@ export function NacOsceTimer() {
     return Math.max(0, Math.min(secondsRemaining / phaseDuration, 1));
   }, [phase, phaseDuration, secondsRemaining]);
   const ringOffset = 100 - remainingProgress * 100;
-  const ringCapAngle = remainingProgress * Math.PI * 2;
-  const ringCapX = 50 + RING_RADIUS * Math.cos(ringCapAngle);
-  const ringCapY = 50 + RING_RADIUS * Math.sin(ringCapAngle);
-  const shouldShowRingCap = remainingProgress > 0.01 && remainingProgress < 0.99;
   const canSeek = phase !== "complete" && phase !== "station-complete";
 
   const currentSignal = useMemo(() => {
@@ -548,15 +544,6 @@ export function NacOsceTimer() {
                   strokeDashoffset={ringOffset}
                   className="transition-[stroke,stroke-dashoffset] duration-500 ease-out"
                 />
-                {shouldShowRingCap ? (
-                  <circle
-                    cx={ringCapX}
-                    cy={ringCapY}
-                    r={RING_STROKE_WIDTH / 2}
-                    fill={isWarning ? "#ef4444" : "var(--clinical-teal)"}
-                    className="transition-[fill,cx,cy] duration-500 ease-out"
-                  />
-                ) : null}
               </svg>
               <div
                 className={`absolute inset-[10px] flex items-center justify-center rounded-full ${
