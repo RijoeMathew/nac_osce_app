@@ -31,11 +31,11 @@
   --text-muted: #8e9aa8;
   --timer-bg: #000000;
   --warning-bg: #24080b;
-  --clinical-blue: #2563eb;
-  --clinical-teal: #0f9f9a;
+  --clinical-blue: #3b82f6;
+  --clinical-teal: #60a5fa;
   --clinical-navy: #f4f7fb;
-  --clinical-mist: #e9f8f7;
-  --clinical-line: #dbe7ee;
+  --clinical-mist: #071426;
+  --clinical-line: #22262d;
   --shadow-panel: 0 18px 40px rgba(0, 0, 0, 0.72);
 }
 
