@@ -314,15 +314,16 @@ export function NacOsceTimer() {
   const phaseDuration = getPhaseDuration(phase, caseType);
   const elapsedSeconds = phaseDuration - secondsRemaining;
   const sliderElapsedSeconds = seekElapsedSeconds ?? elapsedSeconds;
+  const canSeek = phase !== "complete" && phase !== "station-complete";
+  const displaySecondsRemaining = canSeek ? phaseDuration - sliderElapsedSeconds : 0;
   const remainingProgress = useMemo(() => {
-    if (phase === "complete" || phase === "station-complete") {
+    if (!canSeek) {
       return 0;
     }
 
-    return Math.max(0, Math.min(secondsRemaining / phaseDuration, 1));
-  }, [phase, phaseDuration, secondsRemaining]);
+    return Math.max(0, Math.min(displaySecondsRemaining / phaseDuration, 1));
+  }, [canSeek, displaySecondsRemaining, phaseDuration]);
   const ringOffset = 100 - remainingProgress * 100;
-  const canSeek = phase !== "complete" && phase !== "station-complete";
 
   const currentSignal = useMemo(() => {
     if (phase === "reading") {
@@ -344,8 +345,7 @@ export function NacOsceTimer() {
     return "Timer stopped";
   }, [caseType, phase]);
 
-  const isWarning =
-    phase !== "complete" && phase !== "station-complete" && secondsRemaining <= WARNING_SECONDS;
+  const isWarning = canSeek && displaySecondsRemaining <= WARNING_SECONDS;
   const resetTimer = useCallback(
     (nextMode = mode, nextCaseType = caseType) => {
       setMode(nextMode);
@@ -542,7 +542,7 @@ export function NacOsceTimer() {
                   pathLength={100}
                   strokeDasharray={100}
                   strokeDashoffset={ringOffset}
-                  className="transition-[stroke,stroke-dashoffset] duration-500 ease-out"
+                  className="transition-[stroke] duration-150 ease-out"
                 />
               </svg>
               <div
@@ -552,7 +552,7 @@ export function NacOsceTimer() {
               >
                 <div className="text-center">
                   <p className={`font-mono text-6xl font-semibold sm:text-7xl ${isWarning ? "text-red-700" : "text-clinical-navy"}`}>
-                    {formatTime(secondsRemaining)}
+                    {formatTime(displaySecondsRemaining)}
                   </p>
                   <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     {phase === "complete" ? "Done" : isRunning ? "Running" : "Paused"}
@@ -587,7 +587,7 @@ export function NacOsceTimer() {
               />
               <div className="mt-2 flex items-center justify-between text-xs font-semibold text-[var(--text-muted)]">
                 <span>{formatTime(canSeek ? sliderElapsedSeconds : phaseDuration)} elapsed</span>
-                <span>{formatTime(canSeek ? phaseDuration - sliderElapsedSeconds : 0)} remaining</span>
+                <span>{formatTime(displaySecondsRemaining)} remaining</span>
               </div>
             </div>
             <p className="mt-3 text-center text-sm font-semibold text-[var(--text-soft)]">{currentSignal}</p>
