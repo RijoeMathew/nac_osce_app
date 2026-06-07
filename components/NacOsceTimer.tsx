@@ -280,8 +280,8 @@ function getModeDescription(mode: TimerMode) {
 
 function getCaseTypeDescription(caseType: CaseType) {
   return caseType === "with-questions"
-    ? "2 min reading, 8 min encounter, 3 min questions"
-    : "2 min reading, 11 min encounter";
+    ? "8 min encounter, 3 min questions"
+    : "11 min encounter";
 }
 
 export function NacOsceTimer() {
@@ -675,14 +675,14 @@ export function NacOsceTimer() {
                     key={option}
                     type="button"
                     onClick={() => resetTimer(option, caseType)}
-                    className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
+                    className={`flex h-20 flex-col justify-center rounded-md border px-3 py-2 text-left text-sm font-semibold ${
                       mode === option
                         ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
                         : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
                     }`}
                   >
                     <span className="block capitalize">{option}</span>
-                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getModeDescription(option)}</span>
+                    <span className="mt-1 block text-xs font-medium leading-tight text-[var(--text-muted)]">{getModeDescription(option)}</span>
                   </button>
                 ))}
               </div>
@@ -696,14 +696,14 @@ export function NacOsceTimer() {
                     key={option}
                     type="button"
                     onClick={() => resetTimer(mode, option)}
-                    className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold ${
+                    className={`flex h-20 flex-col justify-center rounded-md border px-3 py-2 text-left text-sm font-semibold ${
                       caseType === option
                         ? "border-clinical-teal bg-clinical-mist text-clinical-navy"
                         : "border-clinical-line bg-[var(--surface)] text-[var(--text-soft)]"
                     }`}
                   >
-                    <span className="block">{option === "with-questions" ? "With oral questions" : "Without oral questions"}</span>
-                    <span className="mt-1 block text-xs font-medium text-[var(--text-muted)]">{getCaseTypeDescription(option)}</span>
+                    <span className="block">{option === "with-questions" ? "With oral questions" : "No oral questions"}</span>
+                    <span className="mt-1 block text-xs font-medium leading-tight text-[var(--text-muted)]">{getCaseTypeDescription(option)}</span>
                   </button>
                 ))}
               </div>
