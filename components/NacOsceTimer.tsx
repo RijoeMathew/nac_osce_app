@@ -28,8 +28,8 @@ const FULL_ENCOUNTER_SECONDS = 11 * 60;
 const QUESTIONS_SECONDS = 3 * 60;
 const EXAM_STATIONS = 12;
 const WARNING_SECONDS = 30;
-const RING_RADIUS = 45;
-const RING_STROKE_WIDTH = 6;
+const RING_RADIUS = 44;
+const RING_STROKE_WIDTH = 4.5;
 const ALARM_AUDIO_SRC = "alarm.m4a";
 let sharedAudioContext: AudioContext | null = null;
 let sharedAlarmAudio: HTMLAudioElement | null = null;
@@ -446,7 +446,7 @@ export function NacOsceTimer() {
   }, [caseType, finishStation, phase, stationCount]);
 
   useEffect(() => {
-    if (!isRunning || phase === "complete" || phase === "station-complete") {
+    if (!isRunning || seekElapsedSeconds !== null || phase === "complete" || phase === "station-complete") {
       return;
     }
 
@@ -463,7 +463,7 @@ export function NacOsceTimer() {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [caseType, isRunning, moveToNextPhase, phase]);
+  }, [caseType, isRunning, moveToNextPhase, phase, seekElapsedSeconds]);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--text)]">
@@ -513,12 +513,12 @@ export function NacOsceTimer() {
 
           <div className="mt-5">
             <div
-              className={`relative mx-auto aspect-square w-full max-w-[18rem] overflow-visible rounded-full sm:max-w-[21rem] ${
+              className={`relative mx-auto aspect-square w-full max-w-[18rem] rounded-full sm:max-w-[21rem] ${
                 isWarning ? "timer-warning" : ""
               }`}
             >
               <svg
-                className="absolute inset-0 block h-full w-full -rotate-90 overflow-visible"
+                className="absolute inset-0 block h-full w-full -rotate-90"
                 viewBox="0 0 100 100"
                 preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
@@ -546,7 +546,7 @@ export function NacOsceTimer() {
                 />
               </svg>
               <div
-                className={`absolute inset-[10px] flex items-center justify-center rounded-full ${
+                className={`absolute inset-[24px] flex items-center justify-center rounded-full sm:inset-[28px] ${
                   isWarning ? "bg-[var(--warning-bg)]" : "bg-[var(--timer-bg)]"
                 }`}
               >
@@ -579,13 +579,11 @@ export function NacOsceTimer() {
                 onChange={(event) => {
                   const nextElapsed = Number(event.target.value);
                   updateSeekPreview(nextElapsed);
-                  if (seekElapsedSeconds === null) {
-                    commitSeek(nextElapsed);
-                  }
+                  commitSeek(nextElapsed);
                 }}
                 disabled={!canSeek}
                 aria-label="Adjust timer position"
-                className="time-slider w-full accent-clinical-teal disabled:cursor-not-allowed disabled:opacity-50"
+                className="time-slider w-full accent-clinical-teal disabled:opacity-50"
               />
               <div className="mt-2 flex items-center justify-between text-xs font-semibold text-[var(--text-muted)]">
                 <span>{formatTime(canSeek ? sliderElapsedSeconds : phaseDuration)} elapsed</span>

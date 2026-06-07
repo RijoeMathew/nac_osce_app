@@ -133,7 +133,7 @@ select {
 .time-slider:disabled::-webkit-slider-thumb,
 .time-slider:disabled::-moz-range-track,
 .time-slider:disabled::-moz-range-thumb {
-  cursor: not-allowed;
+  cursor: default;
 }
 
 @keyframes pulse-warning {
