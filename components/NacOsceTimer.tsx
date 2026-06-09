@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CheckCircle2,
@@ -10,7 +10,8 @@ import {
   RotateCcw,
   SkipForward,
   Sun,
-  Volume2
+  Volume2,
+  VolumeX
 } from "lucide-react";
 
 type TimerMode = "practice" | "exam";
@@ -20,6 +21,13 @@ type TimerPhase = "reading" | "encounter" | "questions" | "station-complete" | "
 type AlarmType = "reading-end" | "eight-minute" | "station-end";
 type WindowWithAudioFallback = Window & {
   webkitAudioContext?: typeof AudioContext;
+};
+type TimedPhaseAdvance = {
+  alarm: AlarmType;
+  phase: TimerPhase;
+  secondsRemaining: number;
+  stationIndex: number;
+  isRunning: boolean;
 };
 
 const READING_SECONDS = 2 * 60;
@@ -93,6 +101,66 @@ function getPhaseDuration(phase: TimerPhase, caseType: CaseType) {
   return 1;
 }
 
+function getTimedPhaseAdvance(
+  phase: TimerPhase,
+  caseType: CaseType,
+  stationIndex: number,
+  stationCount: number,
+  autoAdvance: boolean
+): TimedPhaseAdvance | null {
+  if (phase === "reading") {
+    return {
+      alarm: "reading-end",
+      phase: "encounter",
+      secondsRemaining: getEncounterSeconds(caseType),
+      stationIndex,
+      isRunning: true
+    };
+  }
+
+  if (phase === "encounter" && caseType === "with-questions") {
+    return {
+      alarm: "eight-minute",
+      phase: "questions",
+      secondsRemaining: QUESTIONS_SECONDS,
+      stationIndex,
+      isRunning: true
+    };
+  }
+
+  if (phase === "encounter" || phase === "questions") {
+    if (stationIndex >= stationCount) {
+      return {
+        alarm: "station-end",
+        phase: "complete",
+        secondsRemaining: 0,
+        stationIndex,
+        isRunning: false
+      };
+    }
+
+    if (!autoAdvance) {
+      return {
+        alarm: "station-end",
+        phase: "station-complete",
+        secondsRemaining: 0,
+        stationIndex,
+        isRunning: false
+      };
+    }
+
+    return {
+      alarm: "station-end",
+      phase: "reading",
+      secondsRemaining: READING_SECONDS,
+      stationIndex: stationIndex + 1,
+      isRunning: true
+    };
+  }
+
+  return null;
+}
+
 function getAudioContext() {
   const AudioContextConstructor =
     window.AudioContext ?? (window as WindowWithAudioFallback).webkitAudioContext;
@@ -155,7 +223,7 @@ function loadAlarmBuffer() {
   return sharedAlarmBufferPromise;
 }
 
-function unlockAudio() {
+function unlockAudio(primeAudioElement = true) {
   const context = getAudioContext();
   const audio = getAlarmAudio();
 
@@ -171,7 +239,7 @@ function unlockAudio() {
     void loadAlarmBuffer();
   }
 
-  if (!audio || sharedAlarmUnlocked) {
+  if (!primeAudioElement || !audio || sharedAlarmUnlocked) {
     return;
   }
 
@@ -256,8 +324,10 @@ function playAlarmElement() {
     });
 }
 
-function playAlarm(type: AlarmType) {
-  playAlarmElement();
+function playAlarm(type: AlarmType, isMuted = false) {
+  if (!isMuted) {
+    playAlarmElement();
+  }
 
   if (type === "reading-end") {
     navigator.vibrate?.([160, 80, 160]);
@@ -286,23 +356,24 @@ export function NacOsceTimer() {
   const [mode, setMode] = useState<TimerMode>("practice");
   const [caseType, setCaseType] = useState<CaseType>("with-questions");
   const [theme, setTheme] = useState<Theme>("light");
+  const [isMuted, setIsMuted] = useState(false);
   const [phase, setPhase] = useState<TimerPhase>("reading");
   const [secondsRemaining, setSecondsRemaining] = useState(getInitialPhaseSeconds);
   const [stationIndex, setStationIndex] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [seekElapsedSeconds, setSeekElapsedSeconds] = useState<number | null>(null);
+  const phaseEndsAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("nac-osce-theme");
     if (savedTheme === "light" || savedTheme === "dark") {
       setTheme(savedTheme);
-      return;
-    }
-
-    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
       setTheme("dark");
     }
+
+    setIsMuted(window.localStorage.getItem("nac-osce-muted") === "true");
   }, []);
 
   useEffect(() => {
@@ -346,8 +417,22 @@ export function NacOsceTimer() {
   }, [caseType, phase]);
 
   const isWarning = canSeek && displaySecondsRemaining <= WARNING_SECONDS;
+  const toggleMute = useCallback(() => {
+    setIsMuted((current) => {
+      const next = !current;
+      window.localStorage.setItem("nac-osce-muted", String(next));
+
+      if (!next) {
+        unlockAudio(false);
+      }
+
+      return next;
+    });
+  }, []);
+  const playTimerAlarm = useCallback((type: AlarmType) => playAlarm(type, isMuted), [isMuted]);
   const resetTimer = useCallback(
     (nextMode = mode, nextCaseType = caseType) => {
+      phaseEndsAtRef.current = null;
       setMode(nextMode);
       setCaseType(nextCaseType);
       setPhase("reading");
@@ -366,6 +451,7 @@ export function NacOsceTimer() {
       }
 
       const nextElapsed = Math.min(Math.max(elapsedValue, 0), phaseDuration);
+      phaseEndsAtRef.current = null;
       setSecondsRemaining(phaseDuration - nextElapsed);
     },
     [canSeek, phaseDuration]
@@ -392,7 +478,8 @@ export function NacOsceTimer() {
   }, [commitSeek, seekElapsedSeconds]);
 
   const finishStation = useCallback(() => {
-    playAlarm("station-end");
+    phaseEndsAtRef.current = null;
+    playTimerAlarm("station-end");
 
     if (stationIndex >= stationCount) {
       setPhase("complete");
@@ -412,11 +499,13 @@ export function NacOsceTimer() {
     setPhase("reading");
     setSecondsRemaining(READING_SECONDS);
     setSeekElapsedSeconds(null);
-  }, [autoAdvance, stationCount, stationIndex]);
+  }, [autoAdvance, playTimerAlarm, stationCount, stationIndex]);
 
   const moveToNextPhase = useCallback(() => {
+    phaseEndsAtRef.current = null;
+
     if (phase === "reading") {
-      playAlarm("reading-end");
+      playTimerAlarm("reading-end");
       setPhase("encounter");
       setSecondsRemaining(getEncounterSeconds(caseType));
       setSeekElapsedSeconds(null);
@@ -424,7 +513,7 @@ export function NacOsceTimer() {
     }
 
     if (phase === "encounter" && caseType === "with-questions") {
-      playAlarm("eight-minute");
+      playTimerAlarm("eight-minute");
       setPhase("questions");
       setSecondsRemaining(QUESTIONS_SECONDS);
       setSeekElapsedSeconds(null);
@@ -443,27 +532,110 @@ export function NacOsceTimer() {
       setIsRunning(true);
       setSeekElapsedSeconds(null);
     }
-  }, [caseType, finishStation, phase, stationCount]);
+  }, [caseType, finishStation, phase, playTimerAlarm, stationCount]);
 
-  useEffect(() => {
-    if (!isRunning || seekElapsedSeconds !== null || phase === "complete" || phase === "station-complete") {
+  const toggleTimer = useCallback(() => {
+    if (!isMuted) {
+      unlockAudio();
+    }
+
+    if (isRunning) {
+      const phaseEndsAt = phaseEndsAtRef.current;
+      if (phaseEndsAt !== null) {
+        setSecondsRemaining(Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000)));
+      }
+
+      phaseEndsAtRef.current = null;
+      setIsRunning(false);
       return;
     }
 
-    const interval = window.setInterval(() => {
-      setSecondsRemaining((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval);
-          window.setTimeout(moveToNextPhase, 0);
-          return 0;
+    phaseEndsAtRef.current = Date.now() + secondsRemaining * 1000;
+    setIsRunning(true);
+  }, [isMuted, isRunning, secondsRemaining]);
+
+  const syncTimerToNow = useCallback(
+    (now: number) => {
+      const phaseEndsAt = phaseEndsAtRef.current;
+      if (phaseEndsAt === null) {
+        phaseEndsAtRef.current = now + secondsRemaining * 1000;
+        return;
+      }
+
+      const remainingMs = phaseEndsAt - now;
+      if (remainingMs > 0) {
+        setSecondsRemaining(Math.ceil(remainingMs / 1000));
+        return;
+      }
+
+      let overdueMs = Math.abs(remainingMs);
+      let nextPhase = phase;
+      let nextStationIndex = stationIndex;
+      let nextSecondsRemaining = 0;
+      let nextIsRunning = false;
+      const alarms: AlarmType[] = [];
+
+      while (true) {
+        const advance = getTimedPhaseAdvance(
+          nextPhase,
+          caseType,
+          nextStationIndex,
+          stationCount,
+          autoAdvance
+        );
+
+        if (!advance) {
+          phaseEndsAtRef.current = null;
+          setIsRunning(false);
+          return;
         }
 
-        return current - 1;
-      });
-    }, 1000);
+        alarms.push(advance.alarm);
+        nextPhase = advance.phase;
+        nextStationIndex = advance.stationIndex;
+        nextSecondsRemaining = advance.secondsRemaining;
+        nextIsRunning = advance.isRunning;
+
+        if (!nextIsRunning || nextSecondsRemaining * 1000 > overdueMs) {
+          break;
+        }
+
+        overdueMs -= nextSecondsRemaining * 1000;
+      }
+
+      const latestAlarm = alarms[alarms.length - 1];
+      if (latestAlarm) {
+        playTimerAlarm(latestAlarm);
+      }
+      setPhase(nextPhase);
+      setStationIndex(nextStationIndex);
+      setSeekElapsedSeconds(null);
+      setIsRunning(nextIsRunning);
+
+      if (!nextIsRunning) {
+        phaseEndsAtRef.current = null;
+        setSecondsRemaining(0);
+        return;
+      }
+
+      const nextRemainingMs = nextSecondsRemaining * 1000 - overdueMs;
+      phaseEndsAtRef.current = now + nextRemainingMs;
+      setSecondsRemaining(Math.ceil(nextRemainingMs / 1000));
+    },
+    [autoAdvance, caseType, phase, playTimerAlarm, secondsRemaining, stationCount, stationIndex]
+  );
+
+  useEffect(() => {
+    if (!isRunning || seekElapsedSeconds !== null || phase === "complete" || phase === "station-complete") {
+      phaseEndsAtRef.current = null;
+      return;
+    }
+
+    syncTimerToNow(Date.now());
+    const interval = window.setInterval(() => syncTimerToNow(Date.now()), 500);
 
     return () => window.clearInterval(interval);
-  }, [caseType, isRunning, moveToNextPhase, phase, seekElapsedSeconds]);
+  }, [isRunning, phase, seekElapsedSeconds, syncTimerToNow]);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--text)]">
@@ -476,15 +648,13 @@ export function NacOsceTimer() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                unlockAudio();
-                playAlarm("reading-end");
-              }}
+              onClick={toggleMute}
               className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-clinical-line bg-[var(--surface)] text-[var(--text)] shadow-sm hover:bg-[var(--surface-muted)]"
-              aria-label="Test alarm"
-              title="Test alarm"
+              aria-label={isMuted ? "Unmute timer sounds" : "Mute timer sounds"}
+              title={isMuted ? "Unmute timer sounds" : "Mute timer sounds"}
+              aria-pressed={isMuted}
             >
-              <Volume2 size={19} />
+              {isMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}
             </button>
             <button
               type="button"
@@ -596,10 +766,7 @@ export function NacOsceTimer() {
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <button
               type="button"
-              onClick={() => {
-                unlockAudio();
-                setIsRunning((current) => !current);
-              }}
+              onClick={toggleTimer}
               disabled={phase === "complete" || phase === "station-complete"}
               className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-md bg-clinical-blue px-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -609,7 +776,9 @@ export function NacOsceTimer() {
             <button
               type="button"
               onClick={() => {
-                unlockAudio();
+                if (!isMuted) {
+                  unlockAudio();
+                }
                 moveToNextPhase();
               }}
               disabled={phase === "complete"}
