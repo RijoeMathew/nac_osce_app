@@ -3,12 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "NAC OSCE Timer",
-  description: "Mobile-friendly NAC OSCE practice timer",
-  icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png"
-  }
+  description: "Mobile-friendly NAC OSCE practice timer"
 };
 
 export default function RootLayout({
